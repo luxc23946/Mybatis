@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="hkd.luxc.dao.EmployeeMapperPlus">
+	<!--自定义某个javaBean的封装规则    type：JavaBean全限定类名      id:唯一id标识,方便引用 -->
+	<resultMap type="hkd.luxc.entities.Employee" id="MySimpleEmp">
+	  <!--id:指定主键列的封装规则   id标签定义主键底层会有优化;    column:指定哪一列;     property:指定对应的javaBean属性  -->
+		<id column="id" property="id"/>
+		<!-- result:定义普通列封装规则 -->
+		<result column="last_name" property="lastName"/>
+		<!-- 其他不指定的列会自动封装：我们只要写resultMap就把全部的映射规则都写上。 -->
+		<result column="email" property="email"/>
+		<result column="gender" property="gender"/>
+	</resultMap>
+
+	<select id="getEmpById" resultMap="MySimpleEmp">
+		SELECT * FROM tbl_employee WHERE id = #{id}
+	</select>
+	
+	
+	
+	<!-- 联合查询：级联属性封装结果集 -->
+	<resultMap type="hkd.luxc.entities.Employee" id="MyEmp1">
+	   <id column="emp_id" property="id"/>
+	   <result column="emp_last_name" property="lastName"/>
+	   <result column="emp_gender" property="gender"/>
+	   <result column="emp_email" property="email"/>
+	   <result column="dept_id" property="department.id"/>
+	   <result column="dept_dept_name" property="department.deptName"/>
+	</resultMap>
+	
+	<resultMap type="hkd.luxc.entities.Employee" id="MyEmp2">
+	   <id column="emp_id" property="id"/>
+	   <result column="emp_last_name" property="lastName"/>
+	   <result column="emp_gender" property="gender"/>
+	   <result column="emp_email" property="email"/>
+	   <!--  
+	      association可以指定联合的javaBean对象
+		  property="department"：指定哪个属性是联合的对象
+		  javaType:指定这个属性对象的类型[不能省略]
+		-->
+	   <association property="department" javaType="hkd.luxc.entities.Department">
+	      <id column="dept_id" property="id"/>
+	      <result column="dept_dept_name" property="deptName"/>
+	   </association>
+	</resultMap>
+	
+	<select id="getEmpAndDeptById" resultMap="MyEmp2">
+	   SELECT emp.id emp_id,emp.last_name emp_last_name,
+	          emp.gender emp_gender,emp.email emp_email,
+	          emp.dept_id dept_id,dept.dept_name dept_dept_name
+       FROM tbl_employee emp,tbl_dept dept
+       WHERE emp.dept_id=dept.id and emp.id=#{id};
+	</select>
+	
+	
+	
+	<!-- 
+	         使用association进行分步查询：
+		   1、先按照员工id查询员工信息    2、根据查询员工信息中的d_id值去部门表查出部门信息    3、部门设置到员工中；
+	 -->
+	<resultMap type="hkd.luxc.entities.Employee" id="MyEmpByStep">
+	   <id column="id" property="id"/>
+	   <result column="last_name" property="lastName"/>
+	   <result column="gender" property="gender"/>
+	   <result column="email" property="email"/>
+	   <!-- association定义关联对象的封装规则
+	 		select:表明当前属性是调用select指定的方法查出的结果
+	 		column:指定将哪一列的值传给这个方法
+	 		流程：使用select指定的方法（传入column指定的这列参数的值）查出对象，并封装给property指定的属性
+	 	-->
+	   <association property="department" column="dept_id"
+	   select="hkd.luxc.dao.DepartmentMapper.getDeptById"/>
+	</resultMap>
+	<select id="getEmpByIdStep" resultMap="MyEmpByStep">
+	   select * from tbl_employee where id=#{id}
+	</select>
+	<!-- 可以使用延迟加载（懒加载）；(按需加载)
+	 	Employee==>Dept：
+	 		我们每次查询Employee对象的时候，都将一起查询出来。
+	 		部门信息在我们使用的时候再去查询；
+	 		只需要在Mybatis全局配置文件中添加  aggressiveLazyLoading  和   lazyLoadingEnabled
+	-->
+	
+	
+	
+	<select id="getEmpsByDeptId" resultType="hkd.luxc.entities.Employee">
+	  SELECT * FROM tbl_employee emp WHERE emp.dept_id=#{deptId}
+	</select>
+	
+	
+	
+	
+	<!-- =======================鉴别器============================ -->
+	<!-- <discriminator javaType=""></discriminator>
+		鉴别器：mybatis可以使用discriminator判断某列的值，然后根据某列的值改变封装行为
+		封装Employee：
+			如果查出的是女生：就把部门信息查询出来，否则不查询；
+			如果是男生，把last_name这一列的值赋值给email;
+	 -->
+	 <resultMap type="hkd.luxc.entities.Employee" id="MyEmpDis">
+	 	<id column="id" property="id"/>
+	    <result column="last_name" property="lastName"/>
+	    <result column="gender" property="gender"/>
+	    <result column="email" property="email"/>
+	 	<!--
+	 		column：指定判定的列名
+	 		javaType：列值对应的java类型  -->
+	 	<discriminator javaType="string" column="gender">
+	 		<!--女生  resultType:指定封装的结果类型；不能缺少。/resultMap-->
+	 		<case value="0" resultType="hkd.luxc.entities.Employee">
+	 			<association property="department" 
+			 		select="hkd.luxc.dao.DepartmentMapper.getDeptById"
+			 		column="dept_id">
+		 		</association>
+	 		</case>
+	 		<!--男生 ;如果是男生，把last_name这一列的值赋值给email; -->
+	 		<case value="1" resultType="hkd.luxc.entities.Employee">
+		 		<id column="id" property="id"/>
+			 	<result column="last_name" property="lastName" />
+			 	<result column="last_name" property="email"/>
+	 		</case>
+	 	</discriminator>
+	 </resultMap>
+	 <select id="getEmpDisById" resultMap="MyEmpDis">
+	   select * from tbl_employee where id=#{id}
+	</select>
+	
+	
+	
+</mapper>

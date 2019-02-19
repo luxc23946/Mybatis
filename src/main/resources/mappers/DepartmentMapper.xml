@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+  
+  <mapper namespace="hkd.luxc.dao.DepartmentMapper">
+  
+    <select id="getDeptById" resultType="hkd.luxc.entities.Department">
+      select id,dept_name deptName from tbl_dept where id =#{id}
+    </select>
+    
+    
+    <resultMap type="hkd.luxc.entities.Department" id="myDept">
+      <id column="dept_id" property="id"/>
+      <result column="dept_name" property="deptName"/>
+      <!-- 
+         collection定义关联的集合类型的封装规则 
+         ofType:指定集合元素里面的类型
+      -->
+      <collection property="emps" ofType="hkd.luxc.entities.Employee">
+        <id column="emp_id" property="id"/>
+        <result column="emp_last_name" property="lastName"/>
+        <result column="emp_email" property="email"/>
+        <result column="emp_gender" property="gender"/>
+      </collection>
+    </resultMap>
+    <select id="getDeptAndEmpsById" resultMap="myDept">
+      SELECT emp.id emp_id,emp.last_name emp_last_name,emp.email emp_email,emp.gender emp_gender,
+             dept.id dept_id,dept.dept_name dept_name
+      FROM tbl_dept dept
+      LEFT OUTER JOIN tbl_employee emp
+      ON emp.dept_id=dept.id
+      WHERE dept_id=#{id} 
+    </select>
+    
+    <!-- collection：分段查询 -->
+	<resultMap type="hkd.luxc.entities.Department" id="MyDeptStep">
+		<id column="id" property="id"/>
+		<result column="dept_name" property="deptName"/>
+		<collection property="emps" column="{deptId=id}" 
+			select="hkd.luxc.dao.EmployeeMapperPlus.getEmpsByDeptId"
+			fetchType="lazy"/>
+	</resultMap>
+	<!-- public Department getDeptByIdStep(Integer id); -->
+	<select id="getDeptAndEmpsByIdStep" resultMap="MyDeptStep">
+		select id,dept_name from tbl_dept where id=#{id}
+	</select>
+	<!-- 扩展：多列的值传递过去：
+			将多列的值封装map传递；
+			column="{key1=column1,key2=column2}"
+		fetchType="lazy"：表示使用延迟加载；
+				- lazy：延迟
+				- eager：立即
+	 -->
+    
+  </mapper>

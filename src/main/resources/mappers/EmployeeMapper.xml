@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- 1). namespace:名称空间;指定为接口的全类名 
+     2). id:唯一标识 
+     3). resultType:返回值类型  如果返回的是一个集合,要写集合中元素的类型,不能和resultMap同时使用
+     4). 参数 #{id}:从传递过来的参数中取出id值 public Employee getEmpById(Integer id);
+     5). databaseId:数据库厂商标识
+     6.) parameterType：参数值类型,可以省略 
+     
+         习惯   namespace=权限定类名      id=方法名
+-->
+<mapper namespace="hkd.luxc.dao.EmployeeMapper">
+ 
+     <!--  <cache eviction="FIFO" flushInterval="60000" readOnly="false" size="1024"/> -->
+     <cache type="org.mybatis.caches.ehcache.EhcacheCache">
+        <property name="timeToIdleSeconds" value="3600"/>
+    	<property name="timeToLiveSeconds" value="3600"/>
+    	<property name="maxEntriesLocalHeap" value="1000"/>
+    	<property name="maxEntriesLocalDisk" value="10000000"/>
+    	<property name="memoryStoreEvictionPolicy" value="LRU"/>
+     </cache>
+     <!-- 
+                  二级缓存是基于  namespace 的,只有配置 cache标签的映射文件才会用到二级缓存
+                  二级缓存运行机制:当会话执行查询语句时,查询的结果集会先被默认存放在一级缓存的Map中 只有当一级缓存关闭时,一级缓存的内容才会被放入二级缓存的Map。
+                  若两个会话同时查询一个结果集,若第一个会话没有关闭,则第二个会话还是会发送SQL的  当有会话关闭时,数据才会被放入二级缓存的Map
+      -->
+	<!--  
+	eviction:缓存的回收策略：
+		• LRU – 最近最少使用的：移除最长时间不被使用的对象。
+		• FIFO – 先进先出：按对象进入缓存的顺序来移除它们。
+		• SOFT – 软引用：移除基于垃圾回收器状态和软引用规则的对象。
+		• WEAK – 弱引用：更积极地移除基于垃圾收集器状态和弱引用规则的对象。
+		• 默认的是 LRU。
+	flushInterval：缓存刷新间隔
+		缓存多长时间清空一次，默认不清空，设置一个毫秒值
+	readOnly:是否只读：
+		true：只读；mybatis认为所有从缓存中获取数据的操作都是只读操作，不会修改数据。
+				 mybatis为了加快获取速度，直接就会将数据在缓存中的引用交给用户。不安全，速度快
+		false：非只读：mybatis觉得获取的数据可能会被修改。
+				mybatis会利用序列化&反序列的技术克隆一份新的数据给你。安全，速度慢
+	size：缓存存放多少元素；
+	type=""：指定自定义缓存的全类名；
+			实现Cache接口即可；
+			
+	   第三方缓存整合：
+		 *		1）、导入第三方缓存包即可；
+		 *		2）、导入与第三方缓存整合的适配包；官方有；
+		 *		3）、mapper.xml中使用自定义缓存
+		 *		<cache type="org.mybatis.caches.ehcache.EhcacheCache"></cache>
+	-->
+	
+
+
+    <!-- useCache 是否使用二级缓存  局部设置屏蔽全局设置 -->
+	<select id="getEmpById" resultType="hkd.luxc.entities.Employee" databaseId="mysql" useCache="true">
+		select * from tbl_employee where id = #{id}
+	</select>
+	
+	<select id="getEmpByIdAndLastName" resultType="hkd.luxc.entities.Employee">
+	   select * from tbl_employee where id = #{id} and last_name=#{lastName}
+	</select>
+	
+	<select id="getEmpByMap" resultType="hkd.luxc.entities.Employee">
+	   select * from tbl_employee where id = #{id} and last_name=#{lastName} and gender=#{gender}
+	</select>
+	
+	<select id="getEmpsByLastNameLike" resultType="hkd.luxc.entities.Employee">
+	  select * from tbl_employee where last_name like #{last_name}
+	</select>
+	
+	<!-- 将一条记录封装成Map 返回  只需配置 resultType="map" 即可-->
+	<select id="getEmpByIdReturnMap" resultType="map">
+	  select * from tbl_employee where id = #{id}
+	</select>
+	
+	<select id="getEmpByLastNameLikeReturnMap" resultType="hkd.luxc.entities.Employee">
+	   select * from tbl_employee where last_name like #{last_name}
+	</select>
+	 
+	 <!-- 
+	           获取自增主键的值：
+		   mysql支持自增主键，自增主键值的获取，mybatis也是利用statement.getGenreatedKeys()；
+		   useGeneratedKeys="true":使用自增主键获取主键值策略
+		   keyProperty:指定对应的主键属性，也就是mybatis获取到主键值以后，将这个值封装给javaBean的哪个属性
+		   jdbcType=NULL:当掺入参数为null时,向数据库发送NULL值,默认为 OTHER  可以在全局配置设置
+		   flushCache:执行完增删改后是否清空缓存(同时清空 一级 二级缓存)
+	  -->
+	<insert id="addEmp" parameterType="hkd.luxc.entities.Employee" useGeneratedKeys="true" keyProperty="id"
+	 flushCache="true">
+	    insert into tbl_employee(last_name,email,gender,emp_status) values(#{lastName},#{email,jdbcType=NULL},#{gender},#{empStatus}) 
+	</insert>
+	
+	
+	<!-- 
+	获取非自增主键的值：
+		Oracle不支持自增；Oracle使用序列来模拟自增；
+		每次插入的数据的主键是从序列中拿到的值；如何获取到这个值；
+	 -->
+	<insert id="addEmp" databaseId="oracle">
+		<!-- 
+		keyProperty:查出的主键值封装给javaBean的哪个属性
+		order="BEFORE":当前sql在插入sql之前运行
+			   AFTER：当前sql在插入sql之后运行
+		resultType:查出的数据的返回值类型
+		
+		BEFORE运行顺序：
+			先运行selectKey查询id的sql；查出id值封装给javaBean的id属性
+			在运行插入的sql；就可以取出id属性对应的值
+		AFTER运行顺序：
+			先运行插入的sql（从序列中取出新值作为id）；
+			再运行selectKey查询id的sql；
+		 -->
+		<selectKey keyProperty="id" order="BEFORE" resultType="Integer">
+			<!-- 编写查询主键的sql语句 -->
+			<!-- BEFORE-->
+			select EMPLOYEES_SEQ.nextval from dual 
+			<!-- AFTER:select EMPLOYEES_SEQ.currval from dual -->
+		</selectKey>
+		
+		<!-- 插入时的主键是从序列中拿到的 -->
+		<!-- BEFORE:-->
+		insert into employees(EMPLOYEE_ID,LAST_NAME,EMAIL) 
+		values(#{id},#{lastName},#{email}) 
+		<!-- AFTER：
+		insert into employees(EMPLOYEE_ID,LAST_NAME,EMAIL) 
+		values(employees_seq.nextval,#{lastName},#{email}) 
+		-->
+	</insert>
+	
+    <update id="updateEmp">
+        update tbl_employee set last_name=#{lastName},email=#{email},gender=#{gender} where id=#{id}
+    </update>
+    
+    <delete id="deleteEmp">
+        delete from tbl_employee where id=#{id}
+    </delete>
+    
+    <select id="getEmps" resultType="hkd.luxc.entities.Employee">
+        select * from tbl_employee
+    </select>
+    
+    
+    <!-- 调用Oracle的存储过程
+	    public void getPageByProcedure(); 
+		1、使用select标签定义调用存储过程
+		2、statementType="CALLABLE":表示要调用存储过程
+		3、{call procedure_name(params)}
+		4、jdbcType：可以参看jdbcType枚举类
+	-->
+	<select id="getPageByProcedure" statementType="CALLABLE" databaseId="oracle">
+		{call hello_test(
+			#{start,mode=IN,jdbcType=INTEGER},
+			#{end,mode=IN,jdbcType=INTEGER},
+			#{count,mode=OUT,jdbcType=INTEGER},
+			#{emps,mode=OUT,jdbcType=CURSOR,javaType=ResultSet,resultMap=PageEmp}
+		)}
+	</select>
+	<resultMap type="hkd.luxc.entities.Employee" id="PageEmp">
+		<id column="EMPLOYEE_ID" property="id"/>
+		<result column="LAST_NAME" property="email"/>
+		<result column="EMAIL" property="email"/>
+	</resultMap>
+	
+</mapper>
